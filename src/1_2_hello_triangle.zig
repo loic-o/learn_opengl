@@ -105,18 +105,26 @@ pub fn main() !void {
 
     // set up vertex data (and buffer(s)) and configure vertex attributes
     const vertices = [_]f32{
-        -0.5, -0.5, 0.0,
-        0.5,  -0.5, 0.0,
-        0.0,  0.5,  0.0,
+        0.5, 0.5, 0.0, // top right
+        0.5, -0.5, 0.0, // bottom right
+        -0.5, -0.5, 0.0, // bottom left
+        -0.5, 0.5, 0.0, // top left
+    };
+    const indices = [_]u32{
+        0, 1, 3, // first triangle
+        1, 2, 3, // second triangle
     };
 
     var vbo: u32 = undefined;
     var vao: u32 = undefined;
+    var ebo: u32 = undefined;
     gl.genVertexArrays(1, &vao);
     gl.genBuffers(1, &vbo);
+    gl.genBuffers(1, &ebo);
     // optional cleanup
     defer gl.deleteVertexArrays(1, &vao);
     defer gl.deleteBuffers(1, &vbo);
+    defer gl.deleteBuffers(1, &ebo);
 
     // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
     gl.bindVertexArray(vao);
@@ -127,7 +135,10 @@ pub fn main() !void {
     gl.vertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 3 * @sizeOf(f32), null);
     gl.enableVertexAttribArray(0);
 
-    // note taht this is allowed, the call to glVertexAttribPointer registered the VBO as the vertex attribute's
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices.len * @sizeOf(u32), &indices, gl.STATIC_DRAW);
+
+    // note that this is allowed, the call to glVertexAttribPointer registered the VBO as the vertex attribute's
     // bound vertex buffer object so afterwards we can safely unbind
     gl.bindBuffer(gl.ARRAY_BUFFER, 0);
 
@@ -153,7 +164,8 @@ pub fn main() !void {
         // draw our first triangle
         gl.useProgram(shaderProgram);
         gl.bindVertexArray(vao);
-        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
+        gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, null);
         // gl.bindVertexArray(0);  // no need to unbind it every time
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
