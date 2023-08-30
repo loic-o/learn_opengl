@@ -45,10 +45,12 @@ pub fn main() !void {
 
     var allocator = std.heap.page_allocator;
 
+    // initialize stb_image lib
     stbi.init(allocator);
     defer stbi.deinit();
+    stbi.setFlipVerticallyOnLoad(true);
 
-    const my_shader = try shader.create(allocator, "shaders/1_4_shader.vert", "shaders/1_4_shader.frag");
+    const ourShader = try shader.create(allocator, "shaders/1_4_shader.vert", "shaders/1_4_shader.frag");
 
     // set up vertex data (and buffer(s)) and configure vertex attributes
     const vertices = [_]f32{ // positions          // colors           // texture coords
@@ -96,9 +98,12 @@ pub fn main() !void {
     // load and create a texture
     // -------------------------
     var image: stbi.Image = undefined;
-    var texture: u32 = undefined;
-    gl.genTextures(1, &texture);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
+    var texture1: u32 = undefined;
+    var texture2: u32 = undefined;
+    // texture 1
+    // ---------
+    gl.genTextures(1, &texture1);
+    gl.bindTexture(gl.TEXTURE_2D, texture1);
     // set the texture wrapping parameters
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
@@ -109,7 +114,30 @@ pub fn main() !void {
     image = try stbi.Image.loadFromFile("textures/container.jpg", 0);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, @intCast(image.width), @intCast(image.height), 0, gl.RGB, gl.UNSIGNED_BYTE, @ptrCast(image.data));
     gl.generateMipmap(gl.TEXTURE_2D);
-    image.deinit(); // don't think i need to defer this
+    image.deinit();
+    // texture 2
+    // ---------
+    gl.genTextures(1, &texture2);
+    gl.bindTexture(gl.TEXTURE_2D, texture2);
+    // set the texture wrapping parameters
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    // set texture filtering parameters
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    // load image, create texture and generate mipmaps
+    image = try stbi.Image.loadFromFile("textures/awesomeface.png", 0);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, @intCast(image.width), @intCast(image.height), 0, gl.RGBA, gl.UNSIGNED_BYTE, @ptrCast(image.data));
+    gl.generateMipmap(gl.TEXTURE_2D);
+    image.deinit();
+
+    // tell opengl for each sampler to which texture unit it belongs to (only has to be done once)
+    // -------------------------------------------------------------------------------------------
+    ourShader.use();
+    // either set it manually like so:
+    gl.uniform1i(gl.getUniformLocation(ourShader.id, "texture1"), 0);
+    // or set it via the shader class
+    ourShader.setInt("texture2", 1);
 
     // render loop
     // -----------
@@ -122,11 +150,14 @@ pub fn main() !void {
         gl.clearColor(0.2, 0.3, 0.3, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
 
-        // bind Texture
-        gl.bindTexture(gl.TEXTURE_2D, texture);
+        // bind Textures
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, texture1);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, texture2);
 
         // retner container
-        my_shader.use();
+        ourShader.use();
         gl.bindVertexArray(vao);
         gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, null);
 
