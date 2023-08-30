@@ -2,6 +2,7 @@ const std = @import("std");
 
 const zglfw = @import("libs/zglfw/build.zig");
 const zopengl = @import("libs/zopengl/build.zig");
+const zstbi = @import("libs/zstbi/build.zig");
 
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
@@ -11,6 +12,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "hello_window", .src = "src/1_1_hello_window.zig" },
         .{ .name = "hello_triangle", .src = "src/1_2_hello_triangle.zig" },
         .{ .name = "shaders", .src = "src/1_3_shaders.zig" },
+        .{ .name = "textures", .src = "src/1_4_textures.zig" },
     };
 
     // Standard target options allows the person running `zig build` to choose
@@ -26,12 +28,14 @@ pub fn build(b: *std.Build) void {
 
     const zglfw_pkg = zglfw.package(b, target, optimize, .{});
     const zopengl_pkg = zopengl.package(b, target, optimize, .{});
+    const zstbi_pkg = zstbi.package(b, target, optimize, .{});
 
     var exe: *std.Build.Step.Compile = undefined;
     for (exercises) |exercise| {
         exe = build_exercise(b, exercise);
         zglfw_pkg.link(exe);
         zopengl_pkg.link(exe);
+        zstbi_pkg.link(exe);
     }
 }
 
