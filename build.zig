@@ -10,6 +10,7 @@ pub fn build(b: *std.Build) void {
     const exercises = [_]Exercise{
         .{ .name = "hello_window", .src = "src/1_1_hello_window.zig" },
         .{ .name = "hello_triangle", .src = "src/1_2_hello_triangle.zig" },
+        .{ .name = "shaders", .src = "src/1_3_shaders.zig" },
     };
 
     // Standard target options allows the person running `zig build` to choose
