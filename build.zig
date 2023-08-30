@@ -9,19 +9,9 @@ const zopengl = @import("libs/zopengl/build.zig");
 pub fn build(b: *std.Build) void {
     const exercises = [_]Exercise{
         .{ .name = "hello_window", .src = "src/1_1_hello_window.zig" },
+        .{ .name = "hello_triangle", .src = "src/1_2_hello_triangle.zig" },
     };
 
-    for (exercises) |exercise| {
-        build_exercise(b, exercise);
-    }
-}
-
-const Exercise = struct {
-    name: []const u8,
-    src: []const u8,
-};
-
-fn build_exercise(b: *std.Build, exercise: Exercise) void {
     // Standard target options allows the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
     // means any target is allowed, and the default is native. Other options
@@ -33,20 +23,27 @@ fn build_exercise(b: *std.Build, exercise: Exercise) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
-    const exe = b.addExecutable(.{
-        .name = exercise.name,
-        // In this case the main source file is merely a path, however, in more
-        // complicated build scripts, this could be a generated file.
-        .root_source_file = .{ .path = exercise.src },
-        .target = target,
-        .optimize = optimize,
-    });
-
     const zglfw_pkg = zglfw.package(b, target, optimize, .{});
     const zopengl_pkg = zopengl.package(b, target, optimize, .{});
 
-    zglfw_pkg.link(exe);
-    zopengl_pkg.link(exe);
+    var exe: *std.Build.Step.Compile = undefined;
+    for (exercises) |exercise| {
+        exe = build_exercise(b, exercise);
+        zglfw_pkg.link(exe);
+        zopengl_pkg.link(exe);
+    }
+}
+
+const Exercise = struct {
+    name: []const u8,
+    src: []const u8,
+};
+
+fn build_exercise(b: *std.Build, exercise: Exercise) *std.Build.Step.Compile {
+    const exe = b.addExecutable(.{
+        .name = exercise.name,
+        .root_source_file = .{ .path = exercise.src },
+    });
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
@@ -75,4 +72,6 @@ fn build_exercise(b: *std.Build, exercise: Exercise) void {
     // This will evaluate the `run` step rather than the default, which is "install".
     const run_step = b.step(exercise.name, "Run this example");
     run_step.dependOn(&run_cmd.step);
+
+    return exe;
 }
