@@ -3,30 +3,10 @@ const std = @import("std");
 const glfw = @import("zglfw");
 const gl = @import("zopengl");
 
+const shader = @import("shader.zig");
+
 const SCR_WIDTH: u32 = 800;
 const SCR_HEIGHT: u32 = 600;
-
-const vertexShaderSource =
-    \\#version 330 core
-    \\layout (location = 0) in vec3 aPos;
-    \\layout (location = 1) in vec3 aColor;
-    \\
-    \\out vec3 ourColor;
-    \\
-    \\void main() {
-    \\    gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
-    \\    ourColor = aColor;
-    \\}
-;
-const fragmentShaderSource =
-    \\#version 330 core
-    \\out vec4 FragColor;
-    \\in vec3 ourColor;
-    \\
-    \\void main() {
-    \\    FragColor = vec4(ourColor, 1.0);
-    \\}
-;
 
 pub fn main() !void {
     try glfw.init();
@@ -62,51 +42,8 @@ pub fn main() !void {
         std.process.exit(1);
     };
 
-    // build and compile our shader program
-    // ------------------------------------
-    var success: i32 = undefined;
-    var infoLog: [512]u8 = undefined;
-    // vertex shader
-    // -------------
-    const vertexShader = gl.createShader(gl.VERTEX_SHADER);
-    const vertexShaderSourcePtr: [*]const u8 = vertexShaderSource.ptr;
-    gl.shaderSource(vertexShader, 1, &vertexShaderSourcePtr, null);
-    gl.compileShader(vertexShader);
-    // check for shader compile errors
-    gl.getShaderiv(vertexShader, gl.COMPILE_STATUS, &success);
-    if (success == 0) {
-        gl.getShaderInfoLog(vertexShader, 512, null, &infoLog);
-        std.log.err("ERROR::SHADER::VERTEX::COMPILATION_FAILED\n{s}", .{infoLog});
-        std.process.exit(3);
-    }
-    // fragment shader
-    // ---------------
-    const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-    const fragmentShaderSourcePtr: [*]const u8 = fragmentShaderSource.ptr;
-    gl.shaderSource(fragmentShader, 1, &fragmentShaderSourcePtr, null);
-    gl.compileShader(fragmentShader);
-    // check for shader compile errors
-    gl.getShaderiv(fragmentShader, gl.COMPILE_STATUS, &success);
-    if (success == 0) {
-        gl.getShaderInfoLog(fragmentShader, 512, null, &infoLog);
-        std.log.err("ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n{s}", .{infoLog});
-        std.process.exit(3);
-    }
-    // link shaders
-    const shaderProgram = gl.createProgram();
-    gl.attachShader(shaderProgram, vertexShader);
-    gl.attachShader(shaderProgram, fragmentShader);
-    gl.linkProgram(shaderProgram);
-    // check for linking errors
-    gl.getProgramiv(shaderProgram, gl.LINK_STATUS, &success);
-    if (success == 0) {
-        gl.getProgramInfoLog(shaderProgram, 512, null, &infoLog);
-        std.log.err("ERROR::SHADER::PROGRAM::LINK_FAILED\n{s}", .{infoLog});
-        std.process.exit(3);
-    }
-    gl.deleteShader(vertexShader);
-    gl.deleteShader(fragmentShader);
-    defer gl.deleteProgram(shaderProgram);
+    var allocator = std.heap.page_allocator;
+    const my_shader = try shader.create(allocator, "shaders/1_3_shader.vert", "shaders/1_3_shader.frag");
 
     // set up vertex data (and buffer(s)) and configure vertex attributes
     const vertices = [_]f32{
@@ -158,13 +95,7 @@ pub fn main() !void {
         gl.clear(gl.COLOR_BUFFER_BIT);
 
         // be sure to activate the shader before any calls to glUniform
-        gl.useProgram(shaderProgram);
-
-        // update shader uniform
-        const timeValue = glfw.getTime();
-        const greenValue: f32 = @floatCast(std.math.sin(timeValue) / 2.0 + 0.5);
-        const vertexColorLocation = gl.getUniformLocation(shaderProgram, "ourColor");
-        gl.uniform4f(vertexColorLocation, 0.0, greenValue, 0.0, 1.0);
+        my_shader.use();
 
         gl.bindVertexArray(vao);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
