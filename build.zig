@@ -16,6 +16,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "textures", .src = "src/1_4_textures.zig" },
         .{ .name = "transformations", .src = "src/1_5_transformations.zig" },
         .{ .name = "coordinate_systems", .src = "src/1_6_coordinate_systems.zig" },
+        .{ .name = "camera", .src = "src/1_7_camera.zig" },
     };
 
     // Standard target options allows the person running `zig build` to choose
