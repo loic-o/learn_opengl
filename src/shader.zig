@@ -53,7 +53,7 @@ pub const Shader = struct {
     }
 
     pub inline fn setBool(self: Shader, name: []const u8, value: bool) void {
-        gl.uniform1i(gl.getUniformLocation(self.id, name), @as(c_int, value));
+        gl.uniform1i(gl.getUniformLocation(self.id, @ptrCast(name)), @as(c_int, value));
     }
 
     pub inline fn setInt(self: Shader, name: []const u8, value: i32) void {
@@ -61,7 +61,12 @@ pub const Shader = struct {
     }
 
     pub inline fn setFloat(self: Shader, name: []const u8, value: f32) void {
-        gl.uniform1f(gl.getUniformLocation(self.id, name), value);
+        gl.uniform1f(gl.getUniformLocation(self.id, @ptrCast(name)), value);
+    }
+
+    pub inline fn setMatrix4(self: Shader, name: []const u8, transpose: bool, value: [16]f32) void {
+        const tpose = if (transpose) gl.TRUE else gl.FALSE;
+        gl.uniformMatrix4fv(gl.getUniformLocation(self.id, @ptrCast(name)), 1, tpose, &value);
     }
 };
 
