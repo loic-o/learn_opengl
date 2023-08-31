@@ -13,6 +13,21 @@ const SCR_HEIGHT: u32 = 600;
 var scr_width_actual = SCR_WIDTH;
 var scr_height_actual = SCR_HEIGHT;
 
+var deltaTime: f32 = 0.0; // time between current frame and last frame
+var lastFrame: f32 = 0.0; // time of last frame
+
+var pitch: f32 = 0.0;
+var yaw: f32 = -90.0;
+var fov: f32 = 45.0;
+
+var firstMouse = false;
+var lastX: f32 = 400;
+var lastY: f32 = 300;
+
+var cameraPos = zm.f32x4(0.0, 0.0, 3.0, 1.0);
+var cameraFront = zm.f32x4(0.0, 0.0, -1.0, 1.0);
+var cameraUp = zm.f32x4(0.0, 1.0, 0.0, 1.0);
+
 inline fn degToRad(degrees: f32) f32 {
     return degrees * std.math.pi / 180.0;
 }
@@ -50,6 +65,10 @@ pub fn main() !void {
         std.log.err("Failed to initialize zopengl:\n{}", .{err});
         std.process.exit(1);
     };
+
+    glfw.Window.setInputMode(window, glfw.InputMode.cursor, glfw.Cursor.Mode.disabled);
+    _ = glfw.Window.setCursorPosCallback(window, mouseCallback);
+    _ = glfw.Window.setScrollCallback(window, scrollCallback);
 
     var allocator = std.heap.page_allocator;
 
@@ -179,12 +198,13 @@ pub fn main() !void {
     // or set it via the shader class
     ourShader.setInt("texture2", 1);
 
-    const projection = zm.perspectiveFovRhGl(degToRad(45.0), @as(f32, @floatFromInt(scr_width_actual)) / @as(f32, @floatFromInt(scr_height_actual)), 0.1, 100.0);
-    ourShader.setMatrix4("projection", false, zm.matToArr(projection));
-
     // render loop
     // -----------
     while (!window.shouldClose()) {
+        const currentFrame: f32 = @floatCast(glfw.getTime());
+        deltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+
         // input
         processInput(window);
 
@@ -202,11 +222,11 @@ pub fn main() !void {
         // retner container
         ourShader.use();
 
+        const projection = zm.perspectiveFovRhGl(degToRad(fov), @as(f32, @floatFromInt(scr_width_actual)) / @as(f32, @floatFromInt(scr_height_actual)), 0.1, 100.0);
+        ourShader.setMatrix4("projection", false, zm.matToArr(projection));
+
         // const view = zm.translation(0.0, 0.0, -3.0);
-        const radius = 10.0;
-        const camX = @as(f32, @floatCast(std.math.sin(glfw.getTime()))) * radius;
-        const camZ = @as(f32, @floatCast(std.math.cos(glfw.getTime()))) * radius;
-        const view = zm.lookAtRh(.{ camX, 0.0, camZ, 1.0 }, .{ 0.0, 0.0, 0.0, 1.0 }, .{ 0.0, 1.0, 0.0, 1.0 });
+        const view = zm.lookAtRh(cameraPos, cameraPos + cameraFront, cameraUp);
         ourShader.setMatrix4("view", false, zm.matToArr(view));
 
         gl.bindVertexArray(vao);
@@ -236,5 +256,67 @@ fn framebufferSizeCallback(window: *glfw.Window, width: i32, height: i32) callco
 fn processInput(window: *glfw.Window) void {
     if (glfw.Window.getKey(window, glfw.Key.escape) == glfw.Action.press) {
         glfw.Window.setShouldClose(window, true);
+    }
+
+    const cameraSpeed: f32 = 2.5 * deltaTime;
+
+    if (glfw.Window.getKey(window, glfw.Key.w) == glfw.Action.press) {
+        cameraPos += zm.f32x4s(cameraSpeed) * cameraFront;
+    }
+    if (glfw.Window.getKey(window, glfw.Key.s) == glfw.Action.press) {
+        cameraPos -= zm.f32x4s(cameraSpeed) * cameraFront;
+    }
+    if (glfw.Window.getKey(window, glfw.Key.a) == glfw.Action.press) {
+        cameraPos -= zm.normalize3(zm.cross3(cameraFront, cameraUp)) * zm.f32x4s(cameraSpeed);
+    }
+    if (glfw.Window.getKey(window, glfw.Key.d) == glfw.Action.press) {
+        cameraPos += zm.normalize3(zm.cross3(cameraFront, cameraUp)) * zm.f32x4s(cameraSpeed);
+    }
+}
+
+fn mouseCallback(window: *glfw.Window, xpos: f64, ypos: f64) callconv(.C) void {
+    _ = window;
+    if (firstMouse) {
+        lastX = @floatCast(xpos);
+        lastY = @floatCast(ypos);
+        firstMouse = false;
+    }
+
+    var xoffset: f32 = @as(f32, @floatCast(xpos)) - lastX;
+    var yoffset: f32 = lastY - @as(f32, @floatCast(ypos)); // reversed since y-coordinates go from bottom to top
+    lastX = @floatCast(xpos);
+    lastY = @floatCast(ypos);
+
+    const sensitivity: f32 = 0.1;
+    xoffset *= sensitivity;
+    yoffset *= sensitivity;
+
+    yaw += xoffset;
+    pitch += yoffset;
+
+    if (pitch > 89.0) {
+        pitch = 89.0;
+    }
+    if (pitch < -89.0) {
+        pitch = -89.0;
+    }
+
+    cameraFront = zm.normalize3(.{
+        std.math.cos(degToRad(yaw)) * std.math.cos(degToRad(pitch)),
+        std.math.sin(degToRad(pitch)),
+        std.math.sin(degToRad(yaw)) * std.math.cos(degToRad(pitch)),
+        1.0,
+    });
+}
+
+fn scrollCallback(window: *glfw.Window, xoffset: f64, yoffset: f64) callconv(.C) void {
+    _ = xoffset;
+    _ = window;
+    fov -= @as(f32, @floatCast(yoffset));
+    if (fov < 1.0) {
+        fov = 1.0;
+    }
+    if (fov > 45.0) {
+        fov = 45.0;
     }
 }
