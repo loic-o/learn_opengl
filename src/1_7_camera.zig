@@ -5,6 +5,8 @@ const gl = @import("zopengl");
 const stbi = @import("zstbi");
 const zm = @import("zmath");
 
+const Camera = @import("camera.zig");
+
 const shader = @import("shader.zig");
 
 const SCR_WIDTH: u32 = 800;
@@ -16,21 +18,11 @@ var scr_height_actual = SCR_HEIGHT;
 var deltaTime: f32 = 0.0; // time between current frame and last frame
 var lastFrame: f32 = 0.0; // time of last frame
 
-var pitch: f32 = 0.0;
-var yaw: f32 = -90.0;
-var fov: f32 = 45.0;
-
 var firstMouse = false;
 var lastX: f32 = 400;
 var lastY: f32 = 300;
 
-var cameraPos = zm.f32x4(0.0, 0.0, 3.0, 1.0);
-var cameraFront = zm.f32x4(0.0, 0.0, -1.0, 1.0);
-var cameraUp = zm.f32x4(0.0, 1.0, 0.0, 1.0);
-
-inline fn degToRad(degrees: f32) f32 {
-    return degrees * std.math.pi / 180.0;
-}
+var camera = Camera.create(.{ 0.0, 0.0, 3.0, 1.0 }, .{ 0.0, 1.0, 0.0, 0.0 }, -90.0, 0.0);
 
 pub fn main() !void {
     try glfw.init();
@@ -222,18 +214,19 @@ pub fn main() !void {
         // retner container
         ourShader.use();
 
-        const projection = zm.perspectiveFovRhGl(degToRad(fov), @as(f32, @floatFromInt(scr_width_actual)) / @as(f32, @floatFromInt(scr_height_actual)), 0.1, 100.0);
+        const projection = zm.perspectiveFovRhGl(std.math.degreesToRadians(f32, camera.zoom), @as(f32, @floatFromInt(scr_width_actual)) / @as(f32, @floatFromInt(scr_height_actual)), 0.1, 100.0);
         ourShader.setMatrix4("projection", false, zm.matToArr(projection));
 
         // const view = zm.translation(0.0, 0.0, -3.0);
-        const view = zm.lookAtRh(cameraPos, cameraPos + cameraFront, cameraUp);
-        ourShader.setMatrix4("view", false, zm.matToArr(view));
+        // const view = zm.lookAtRh(cameraPos, cameraPos + cameraFront, cameraUp);
+        const view = camera.getViewMatrix();
+        ourShader.setMatrix4("view", false, view);
 
         gl.bindVertexArray(vao);
         for (cubePositions, 0..) |pos, i| {
             const angle: f32 = 20.0 * @as(f32, @floatFromInt(i));
             // const model = zm.mul(zm.translation(pos[0], pos[1], pos[2]), zm.matFromAxisAngle(.{ 1.0, 0.3, 0.5, 0.0 }, degToRad(angle)));
-            const model = zm.mul(zm.matFromAxisAngle(.{ 1.0, 0.3, 0.5, 0.0 }, degToRad(angle)), zm.translation(pos[0], pos[1], pos[2]));
+            const model = zm.mul(zm.matFromAxisAngle(.{ 1.0, 0.3, 0.5, 0.0 }, std.math.degreesToRadians(f32, angle)), zm.translation(pos[0], pos[1], pos[2]));
             ourShader.setMatrix4("model", false, zm.matToArr(model));
             gl.drawArrays(gl.TRIANGLES, 0, 36);
         }
@@ -258,19 +251,17 @@ fn processInput(window: *glfw.Window) void {
         glfw.Window.setShouldClose(window, true);
     }
 
-    const cameraSpeed: f32 = 2.5 * deltaTime;
-
     if (glfw.Window.getKey(window, glfw.Key.w) == glfw.Action.press) {
-        cameraPos += zm.f32x4s(cameraSpeed) * cameraFront;
+        camera.processMovement(Camera.Movement.forward, deltaTime);
     }
     if (glfw.Window.getKey(window, glfw.Key.s) == glfw.Action.press) {
-        cameraPos -= zm.f32x4s(cameraSpeed) * cameraFront;
+        camera.processMovement(Camera.Movement.backward, deltaTime);
     }
     if (glfw.Window.getKey(window, glfw.Key.a) == glfw.Action.press) {
-        cameraPos -= zm.normalize3(zm.cross3(cameraFront, cameraUp)) * zm.f32x4s(cameraSpeed);
+        camera.processMovement(Camera.Movement.left, deltaTime);
     }
     if (glfw.Window.getKey(window, glfw.Key.d) == glfw.Action.press) {
-        cameraPos += zm.normalize3(zm.cross3(cameraFront, cameraUp)) * zm.f32x4s(cameraSpeed);
+        camera.processMovement(Camera.Movement.right, deltaTime);
     }
 }
 
@@ -287,36 +278,11 @@ fn mouseCallback(window: *glfw.Window, xpos: f64, ypos: f64) callconv(.C) void {
     lastX = @floatCast(xpos);
     lastY = @floatCast(ypos);
 
-    const sensitivity: f32 = 0.1;
-    xoffset *= sensitivity;
-    yoffset *= sensitivity;
-
-    yaw += xoffset;
-    pitch += yoffset;
-
-    if (pitch > 89.0) {
-        pitch = 89.0;
-    }
-    if (pitch < -89.0) {
-        pitch = -89.0;
-    }
-
-    cameraFront = zm.normalize3(.{
-        std.math.cos(degToRad(yaw)) * std.math.cos(degToRad(pitch)),
-        std.math.sin(degToRad(pitch)),
-        std.math.sin(degToRad(yaw)) * std.math.cos(degToRad(pitch)),
-        1.0,
-    });
+    camera.processMovement(Camera.Movement{ .rotate = .{ .deltaX = xoffset, .deltaY = yoffset } }, deltaTime);
 }
 
 fn scrollCallback(window: *glfw.Window, xoffset: f64, yoffset: f64) callconv(.C) void {
     _ = xoffset;
     _ = window;
-    fov -= @as(f32, @floatCast(yoffset));
-    if (fov < 1.0) {
-        fov = 1.0;
-    }
-    if (fov > 45.0) {
-        fov = 45.0;
-    }
+    camera.processMovement(Camera.Movement{ .zoom = @as(f32, @floatCast(yoffset)) }, deltaTime);
 }
