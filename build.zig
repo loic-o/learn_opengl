@@ -10,6 +10,7 @@ const zmath = @import("libs/zmath/build.zig");
 // runner.
 pub fn build(b: *std.Build) void {
     const exercises = [_]Exercise{
+        // getting started
         .{ .name = "hello_window", .src = "src/1_1_hello_window.zig" },
         .{ .name = "hello_triangle", .src = "src/1_2_hello_triangle.zig" },
         .{ .name = "shaders", .src = "src/1_3_shaders.zig" },
@@ -17,8 +18,9 @@ pub fn build(b: *std.Build) void {
         .{ .name = "transformations", .src = "src/1_5_transformations.zig" },
         .{ .name = "coordinate_systems", .src = "src/1_6_coordinate_systems.zig" },
         .{ .name = "camera", .src = "src/1_7_camera.zig" },
-        //
+        // lighting
         .{ .name = "colors", .src = "src/2_1_colors.zig" },
+        .{ .name = "basic_lighting", .src = "src/2_2_basic_lighting.zig" },
     };
 
     // Standard target options allows the person running `zig build` to choose
