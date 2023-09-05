@@ -171,6 +171,7 @@ pub fn main() !void {
         lightingShader.setVec3("objectColor", .{ 1.0, 0.5, 0.31 });
         lightingShader.setVec3("lightColor", .{ 1.0, 1.0, 1.0 });
         lightingShader.setVec3("lightPos", .{ lightPos[0], lightPos[1], lightPos[2] });
+        lightingShader.setVec3("viewPos", .{ camera.position[0], camera.position[1], camera.position[2] });
 
         // view/projection transformations
         const projection = zm.perspectiveFovRhGl(std.math.degreesToRadians(f32, camera.zoom), @as(f32, @floatFromInt(scr_width_actual)) / @as(f32, @floatFromInt(scr_height_actual)), 0.1, 100.0);
