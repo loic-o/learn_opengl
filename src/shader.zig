@@ -64,6 +64,10 @@ pub const Shader = struct {
         gl.uniform1f(gl.getUniformLocation(self.id, @ptrCast(name)), value);
     }
 
+    pub inline fn setVec3(self: Shader, name: []const u8, value: [3]f32) void {
+        gl.uniform3fv(gl.getUniformLocation(self.id, @ptrCast(name)), 1, &value);
+    }
+
     pub inline fn setMatrix4(self: Shader, name: []const u8, transpose: bool, value: [16]f32) void {
         const tpose = if (transpose) gl.TRUE else gl.FALSE;
         gl.uniformMatrix4fv(gl.getUniformLocation(self.id, @ptrCast(name)), 1, tpose, &value);
