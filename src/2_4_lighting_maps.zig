@@ -157,6 +157,7 @@ pub fn main() !void {
     gl.enableVertexAttribArray(0);
 
     const diffuseMap = try loadTexture("textures/container2.png");
+    const specularMap = try loadTexture("textures/container2_specular.png");
 
     // render loop
     // -----------
@@ -185,10 +186,12 @@ pub fn main() !void {
 
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, diffuseMap);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, specularMap);
 
         // can do this outside the loop
         lightingShader.setInt("material.diffuse", 0);
-        lightingShader.setVec3("material.specular", .{ 0.5, 0.5, 0.5 });
+        lightingShader.setInt("material.specular", 1);
         lightingShader.setFloat("material.shininess", 64.0);
 
         // view/projection transformations
