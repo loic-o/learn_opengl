@@ -191,11 +191,16 @@ pub fn main() !void {
         lightingShader.use();
 
         lightingShader.setVec3("viewPos", .{ camera.position[0], camera.position[1], camera.position[2] });
-        lightingShader.setVec3("light.direction", .{ -0.2, -1.0, -0.3 });
+        // lightingShader.setVec3("light.direction", .{ -0.2, -1.0, -0.3 });
+        lightingShader.setVec3("light.position", .{ lightPos[0], lightPos[1], lightPos[2] });
 
         lightingShader.setVec3("light.ambient", .{ 0.2, 0.2, 0.2 });
         lightingShader.setVec3("light.diffuse", .{ 0.5, 0.5, 0.5 });
         lightingShader.setVec3("light.specular", .{ 1.0, 1.0, 1.0 });
+
+        lightingShader.setFloat("light.constant", 1.0);
+        lightingShader.setFloat("light.linear", 0.09);
+        lightingShader.setFloat("light.quadratic", 0.032);
 
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, diffuseMap);
@@ -212,10 +217,6 @@ pub fn main() !void {
         const view = camera.getViewMatrix();
         lightingShader.setMatrix4("projection", false, zm.matToArr(projection));
         lightingShader.setMatrix4("view", false, view);
-
-        // world transformation
-        // var model = zm.identity();
-        // lightingShader.setMatrix4("model", false, zm.matToArr(model));
 
         // render the cube
         gl.bindVertexArray(cubeVao);
