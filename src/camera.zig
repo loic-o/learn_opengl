@@ -15,6 +15,8 @@ pub const MoveMove = struct {
 pub const Movement = union(enum) {
     forward: void,
     backward: void,
+    up: void,
+    down: void,
     left: void,
     right: void,
     rotate: MoveMove,
@@ -64,6 +66,12 @@ pub fn processMovement(self: *Camera, movement: Movement, delta_time: f32) void 
         },
         .right => {
             self.position += zm.normalize3(zm.cross3(self.front, self.up)) * velocity;
+        },
+        .up => {
+            self.position += self.up * velocity;
+        },
+        .down => {
+            self.position -= self.up * velocity;
         },
         .rotate => |offsets| {
             self.yaw += offsets.deltaX * self.mouse_sensitivity;
