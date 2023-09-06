@@ -22,6 +22,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "colors", .src = "src/2_1_colors.zig" },
         .{ .name = "basic_lighting", .src = "src/2_2_basic_lighting_a.zig" },
         .{ .name = "materials", .src = "src/2_3_materials.zig" },
+        .{ .name = "lighting_maps", .src = "src/2_4_lighting_maps.zig" },
     };
 
     // Standard target options allows the person running `zig build` to choose
