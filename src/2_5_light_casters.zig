@@ -73,7 +73,7 @@ pub fn main() !void {
     // configure global opengl state
     gl.enable(gl.DEPTH_TEST);
 
-    const lightingShader = try shader.create(allocator, "shaders/2_5_light_casters.vert", "shaders/2_5_light_casters.frag");
+    const lightingShader = try shader.create(allocator, "shaders/2_5_light_casters.vert", "shaders/2_5_light_casters_flashlight.frag");
     const lightCubeShader = try shader.create(allocator, "shaders/2_0_light_cube.vert", "shaders/2_0_light_cube.frag");
 
     // set up vertex data (and buffer(s)) and configure vertex attributes
@@ -192,10 +192,13 @@ pub fn main() !void {
 
         lightingShader.setVec3("viewPos", .{ camera.position[0], camera.position[1], camera.position[2] });
         // lightingShader.setVec3("light.direction", .{ -0.2, -1.0, -0.3 });
-        lightingShader.setVec3("light.position", .{ lightPos[0], lightPos[1], lightPos[2] });
+        lightingShader.setVec3("light.position", .{ camera.position[0], camera.position[1], camera.position[2] });
+        lightingShader.setVec3("light.direction", .{ camera.front[0], camera.front[1], camera.front[2] });
+        lightingShader.setFloat("light.cutOff", std.math.cos(degToRad(12.5)));
+        lightingShader.setFloat("light.outerCutOff", std.math.cos(degToRad(17.5)));
 
-        lightingShader.setVec3("light.ambient", .{ 0.2, 0.2, 0.2 });
-        lightingShader.setVec3("light.diffuse", .{ 0.5, 0.5, 0.5 });
+        lightingShader.setVec3("light.ambient", .{ 0.1, 0.1, 0.1 });
+        lightingShader.setVec3("light.diffuse", .{ 0.8, 0.8, 0.8 });
         lightingShader.setVec3("light.specular", .{ 1.0, 1.0, 1.0 });
 
         lightingShader.setFloat("light.constant", 1.0);
@@ -210,7 +213,7 @@ pub fn main() !void {
         // can do this outside the loop
         lightingShader.setInt("material.diffuse", 0);
         lightingShader.setInt("material.specular", 1);
-        lightingShader.setFloat("material.shininess", 64.0);
+        lightingShader.setFloat("material.shininess", 32.0);
 
         // view/projection transformations
         const projection = zm.perspectiveFovRhGl(std.math.degreesToRadians(f32, camera.zoom), @as(f32, @floatFromInt(scr_width_actual)) / @as(f32, @floatFromInt(scr_height_actual)), 0.1, 100.0);
