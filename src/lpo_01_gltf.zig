@@ -3,6 +3,7 @@ const std = @import("std");
 const glfw = @import("zglfw");
 const gl = @import("zopengl");
 const zm = @import("zmath");
+const stbi = @import("zstbi");
 const zmesh = @import("zmesh");
 
 const shader = @import("shader.zig");
@@ -26,6 +27,12 @@ const VERT_SHADER = "shaders/lpo_01_gltf.vert";
 const FRAG_SHADER = "shaders/lpo_01_gltf.frag";
 
 const GLTF_FILE = "models/asteroids.gltf";
+
+const Vertex = struct {
+    position: [3]f32,
+    normal: [3]f32,
+    texCoords: [2]f32,
+};
 
 pub fn main() !void {
     try glfw.init();
@@ -65,6 +72,10 @@ pub fn main() !void {
         std.process.exit(1);
     };
 
+    gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     var allocator = gpa.allocator();
@@ -72,16 +83,35 @@ pub fn main() !void {
     defer arena.deinit();
     var arena_allocator = arena.allocator();
 
-    const myShader = try shader.create(allocator, VERT_SHADER, FRAG_SHADER);
+    // initialize stb_image lib
+    stbi.init(allocator);
+    defer stbi.deinit();
+    stbi.setFlipVerticallyOnLoad(true);
 
+    // initialise the zmesh library
     zmesh.init(arena_allocator);
     defer zmesh.deinit();
 
-    var src_positions = std.ArrayList([3]f32).init(arena_allocator);
+    const myShader = try shader.create(allocator, VERT_SHADER, FRAG_SHADER);
+
+    const diffuseMap = try loadTexture("textures/resurrect64.png");
+
     var src_indices = std.ArrayList(u32).init(arena_allocator);
+    var src_positions = std.ArrayList([3]f32).init(arena_allocator);
+    var src_normals = std.ArrayList([3]f32).init(arena_allocator);
+    var src_texcoords = std.ArrayList([2]f32).init(arena_allocator);
     const data = try zmesh.io.parseAndLoadFile(GLTF_FILE);
     defer zmesh.io.freeData(data);
-    try zmesh.io.appendMeshPrimitive(data, 0, 0, &src_indices, &src_positions, null, null, null);
+    try zmesh.io.appendMeshPrimitive(data, 0, 0, &src_indices, &src_positions, &src_normals, &src_texcoords, null);
+
+    var src_vertices = try std.ArrayList(Vertex).initCapacity(arena_allocator, src_positions.items.len);
+    for (src_positions.items, 0..) |_, i| {
+        src_vertices.appendAssumeCapacity(Vertex{
+            .position = src_positions.items[i],
+            .normal = src_normals.items[i],
+            .texCoords = src_texcoords.items[i],
+        });
+    }
 
     var vbo: u32 = undefined;
     var vao: u32 = undefined;
@@ -98,16 +128,26 @@ pub fn main() !void {
     gl.bindVertexArray(vao);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-    gl.bufferData(gl.ARRAY_BUFFER, @as(isize, @intCast(src_positions.items.len * @sizeOf([3]f32))), &src_positions.items[0], gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, @as(isize, @intCast(src_vertices.items.len * @sizeOf(Vertex))), &src_vertices.items[0], gl.STATIC_DRAW);
 
-    gl.vertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 3 * @sizeOf(f32), null);
+    // position attribute
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, @sizeOf(Vertex), null);
     gl.enableVertexAttribArray(0);
+    // normal attribute
+    gl.vertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, @sizeOf(Vertex), @ptrFromInt(3 * @sizeOf(f32)));
+    gl.enableVertexAttribArray(1);
+    // texture coord attribute
+    gl.vertexAttribPointer(2, 2, gl.FLOAT, gl.FALSE, @sizeOf(Vertex), @ptrFromInt(6 * @sizeOf(f32)));
+    gl.enableVertexAttribArray(2);
 
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, @as(isize, @intCast(src_indices.items.len * @sizeOf(u32))), &src_indices.items[0], gl.STATIC_DRAW);
 
     // uncomment this call to draw in wireframe polygons
     // gl.polygonMode(gl.FRONT_AND_BACK, gl.LINE);
+
+    myShader.use();
+    myShader.setInt("diffuseTexture", 0);
 
     // render loop
     // -----------
@@ -121,11 +161,14 @@ pub fn main() !void {
 
         // render
         // ------
-        gl.clearColor(0.2, 0.3, 0.3, 1.0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.clearColor(0.1, 0.1, 0.1, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         // draw our first triangle
         myShader.use();
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, diffuseMap);
 
         const projection = zm.perspectiveFovRhGl(std.math.degreesToRadians(f32, camera.zoom), @as(f32, @floatFromInt(scr_width_actual)) / @as(f32, @floatFromInt(scr_height_actual)), 0.1, 100.0);
         const view = camera.getViewMatrix();
@@ -133,11 +176,15 @@ pub fn main() !void {
         myShader.setMatrix4("projection", false, zm.matToArr(projection));
         myShader.setMatrix4("view", false, view);
         myShader.setMatrix4("model", false, zm.matToArr(model));
+        myShader.setMatrix4("modelInvTranspose", false, zm.matToArr(zm.transpose(zm.inverse(model))));
+
+        myShader.setVec3("light.direction", .{ 1.0, -1.0, -1.0 });
+        myShader.setVec3("light.ambient", .{ 0.2, 0.2, 0.2 });
+        myShader.setVec3("light.diffuse", .{ 0.5, 0.5, 0.5 });
 
         gl.bindVertexArray(vao);
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
+        // gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
         gl.drawElements(gl.TRIANGLES, @as(c_int, @intCast(src_indices.items.len)), gl.UNSIGNED_INT, null);
-        // gl.bindVertexArray(0);  // no need to unbind it every time
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         window.swapBuffers();
@@ -203,4 +250,34 @@ fn scrollCallback(window: *glfw.Window, xoffset: f64, yoffset: f64) callconv(.C)
 
 inline fn degToRad(degrees: f32) f32 {
     return degrees * std.math.pi / 180.0;
+}
+
+fn loadTexture(path: []const u8) !u32 {
+    var textureID: u32 = undefined;
+    gl.genTextures(1, &textureID);
+
+    var image: stbi.Image = undefined;
+    image = stbi.Image.loadFromFile(@ptrCast(path), 0) catch |err| {
+        std.log.err("Failed to load texture: {s}\n{}", .{ path, err });
+        return err;
+    };
+    defer image.deinit();
+
+    const format: u32 = switch (image.num_components) {
+        1 => gl.RED,
+        3 => gl.RGB,
+        4 => gl.RGBA,
+        else => unreachable,
+    };
+
+    gl.bindTexture(gl.TEXTURE_2D, textureID);
+    gl.texImage2D(gl.TEXTURE_2D, 0, format, @intCast(image.width), @intCast(image.height), 0, format, gl.UNSIGNED_BYTE, @ptrCast(image.data));
+    gl.generateMipmap(gl.TEXTURE_2D);
+
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+    return textureID;
 }
