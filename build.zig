@@ -4,6 +4,7 @@ const zglfw = @import("libs/zglfw/build.zig");
 const zopengl = @import("libs/zopengl/build.zig");
 const zstbi = @import("libs/zstbi/build.zig");
 const zmath = @import("libs/zmath/build.zig");
+const zmesh = @import("libs/zmesh/build.zig");
 
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
@@ -25,6 +26,8 @@ pub fn build(b: *std.Build) void {
         .{ .name = "lighting_maps", .src = "src/2_4_lighting_maps.zig" },
         .{ .name = "light_casters", .src = "src/2_5_light_casters.zig" },
         .{ .name = "multiple_lights", .src = "src/2_6_multiple_lights.zig" },
+        // loic - gltf
+        .{ .name = "lpo_01", .src = "src/lpo_01_gltf.zig" },
     };
 
     // Standard target options allows the person running `zig build` to choose
@@ -44,6 +47,7 @@ pub fn build(b: *std.Build) void {
     const zmath_pkg = zmath.package(b, target, optimize, .{
         .options = .{ .enable_cross_platform_determinism = true },
     });
+    const zmesh_pkg = zmesh.package(b, target, optimize, .{});
 
     var exe: *std.Build.Step.Compile = undefined;
     for (exercises) |exercise| {
@@ -52,6 +56,7 @@ pub fn build(b: *std.Build) void {
         zopengl_pkg.link(exe);
         zstbi_pkg.link(exe);
         zmath_pkg.link(exe);
+        zmesh_pkg.link(exe);
     }
 }
 
