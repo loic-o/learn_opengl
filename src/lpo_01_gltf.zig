@@ -5,6 +5,7 @@ const gl = @import("zopengl");
 const zm = @import("zmath");
 const zmesh = @import("zmesh");
 
+const shader = @import("shader.zig");
 const Camera = @import("camera.zig");
 
 const SCR_WIDTH: u32 = 800;
@@ -21,26 +22,10 @@ var lastX: f32 = @as(f32, SCR_WIDTH) / 2.0;
 var lastY: f32 = @as(f32, SCR_HEIGHT) / 2.0;
 var firstMouse = false;
 
-const vertexShaderSource =
-    \\#version 330 core
-    \\layout (location = 0) in vec3 aPos;
-    \\
-    \\uniform mat4 model;
-    \\uniform mat4 view;
-    \\uniform mat4 projection;
-    \\
-    \\void main() {
-    \\    gl_Position = projection * view * model * vec4(aPos, 1.0);
-    \\}
-;
-const fragmentShaderSource =
-    \\#version 330 core
-    \\out vec4 FragColor;
-    \\
-    \\void main() {
-    \\    FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
-    \\}
-;
+const VERT_SHADER = "shaders/lpo_01_gltf.vert";
+const FRAG_SHADER = "shaders/lpo_01_gltf.frag";
+
+const GLTF_FILE = "models/asteroids.gltf";
 
 pub fn main() !void {
     try glfw.init();
@@ -80,81 +65,23 @@ pub fn main() !void {
         std.process.exit(1);
     };
 
-    // build and compile our shader program
-    // ------------------------------------
-    var success: i32 = undefined;
-    var infoLog: [512]u8 = undefined;
-    // vertex shader
-    // -------------
-    const vertexShader = gl.createShader(gl.VERTEX_SHADER);
-    const vertexShaderSourcePtr: [*]const u8 = vertexShaderSource.ptr;
-    gl.shaderSource(vertexShader, 1, &vertexShaderSourcePtr, null);
-    gl.compileShader(vertexShader);
-    // check for shader compile errors
-    gl.getShaderiv(vertexShader, gl.COMPILE_STATUS, &success);
-    if (success == 0) {
-        gl.getShaderInfoLog(vertexShader, 512, null, &infoLog);
-        std.log.err("ERROR::SHADER::VERTEX::COMPILATION_FAILED\n{s}", .{infoLog});
-        std.process.exit(3);
-    }
-    // fragment shader
-    // ---------------
-    const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-    const fragmentShaderSourcePtr: [*]const u8 = fragmentShaderSource.ptr;
-    gl.shaderSource(fragmentShader, 1, &fragmentShaderSourcePtr, null);
-    gl.compileShader(fragmentShader);
-    // check for shader compile errors
-    gl.getShaderiv(fragmentShader, gl.COMPILE_STATUS, &success);
-    if (success == 0) {
-        gl.getShaderInfoLog(fragmentShader, 512, null, &infoLog);
-        std.log.err("ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n{s}", .{infoLog});
-        std.process.exit(3);
-    }
-    // link shaders
-    const shaderProgram = gl.createProgram();
-    gl.attachShader(shaderProgram, vertexShader);
-    gl.attachShader(shaderProgram, fragmentShader);
-    gl.linkProgram(shaderProgram);
-    // check for linking errors
-    gl.getProgramiv(shaderProgram, gl.LINK_STATUS, &success);
-    if (success == 0) {
-        gl.getProgramInfoLog(shaderProgram, 512, null, &infoLog);
-        std.log.err("ERROR::SHADER::PROGRAM::LINK_FAILED\n{s}", .{infoLog});
-        std.process.exit(3);
-    }
-    gl.deleteShader(vertexShader);
-    gl.deleteShader(fragmentShader);
-    defer gl.deleteProgram(shaderProgram);
-
-    // set up vertex data (and buffer(s)) and configure vertex attributes
-    const vertices = [_]f32{
-        // 0.5, 0.5, 0.0, // top right
-        // 0.5, -0.5, 0.0, // bottom right
-        // -0.5, 0.5, 0.0, // top left
-        0.0, 0.0, 0.0,
-        1.0, 0.0, 0.0,
-        0.0, 1.0, 0.0,
-    };
-    _ = vertices;
-    // const indices = [_]u32{
-    //     0, 1, 2, // first triangle
-    // };
-
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
     var allocator = gpa.allocator();
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     var arena_allocator = arena.allocator();
+
+    const myShader = try shader.create(allocator, VERT_SHADER, FRAG_SHADER);
 
     zmesh.init(arena_allocator);
     defer zmesh.deinit();
 
     var src_positions = std.ArrayList([3]f32).init(arena_allocator);
     var src_indices = std.ArrayList(u32).init(arena_allocator);
-    const data = try zmesh.io.parseAndLoadFile("models/minimal.gltf");
+    const data = try zmesh.io.parseAndLoadFile(GLTF_FILE);
     defer zmesh.io.freeData(data);
     try zmesh.io.appendMeshPrimitive(data, 0, 0, &src_indices, &src_positions, null, null, null);
-    std.log.debug("pos: {any}\nind: {any}", .{ src_positions.items, src_indices.items });
 
     var vbo: u32 = undefined;
     var vao: u32 = undefined;
@@ -171,24 +98,13 @@ pub fn main() !void {
     gl.bindVertexArray(vao);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-    // gl.bufferData(gl.ARRAY_BUFFER, vertices.len * @sizeOf(f32), &vertices, gl.STATIC_DRAW);
     gl.bufferData(gl.ARRAY_BUFFER, @as(isize, @intCast(src_positions.items.len * @sizeOf([3]f32))), &src_positions.items[0], gl.STATIC_DRAW);
 
     gl.vertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 3 * @sizeOf(f32), null);
     gl.enableVertexAttribArray(0);
 
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
-    // gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices.len * @sizeOf(u32), &indices, gl.STATIC_DRAW);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, @as(isize, @intCast(src_indices.items.len * @sizeOf(u32))), &src_indices.items[0], gl.STATIC_DRAW);
-
-    // note that this is allowed, the call to glVertexAttribPointer registered the VBO as the vertex attribute's
-    // bound vertex buffer object so afterwards we can safely unbind
-    gl.bindBuffer(gl.ARRAY_BUFFER, 0);
-
-    // you can unbind the VAO afterwards so other VAO calls wont accidentally modify this VAO, but this rarely happens.
-    // modifying other VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs)
-    // when its not directly necessary.
-    gl.bindVertexArray(0);
 
     // uncomment this call to draw in wireframe polygons
     // gl.polygonMode(gl.FRONT_AND_BACK, gl.LINE);
@@ -209,13 +125,14 @@ pub fn main() !void {
         gl.clear(gl.COLOR_BUFFER_BIT);
 
         // draw our first triangle
-        gl.useProgram(shaderProgram);
+        myShader.use();
 
         const projection = zm.perspectiveFovRhGl(std.math.degreesToRadians(f32, camera.zoom), @as(f32, @floatFromInt(scr_width_actual)) / @as(f32, @floatFromInt(scr_height_actual)), 0.1, 100.0);
         const view = camera.getViewMatrix();
-        gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "projection"), 1, gl.FALSE, &zm.matToArr(projection));
-        gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "view"), 1, gl.FALSE, &view);
-        gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "model"), 1, gl.FALSE, &zm.matToArr(zm.identity()));
+        const model = zm.rotationY(currentFrame);
+        myShader.setMatrix4("projection", false, zm.matToArr(projection));
+        myShader.setMatrix4("view", false, view);
+        myShader.setMatrix4("model", false, zm.matToArr(model));
 
         gl.bindVertexArray(vao);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
