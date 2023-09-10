@@ -27,6 +27,7 @@ const VERT_SHADER = "shaders/lpo_01_gltf.vert";
 const FRAG_SHADER = "shaders/lpo_01_gltf.frag";
 
 const GLTF_FILE = "models/asteroids.gltf";
+const TEXTURE_FILE = "textures/resurrect64_lpo_2x64.png";
 
 const Vertex = struct {
     position: [3]f32,
@@ -86,15 +87,13 @@ pub fn main() !void {
     // initialize stb_image lib
     stbi.init(allocator);
     defer stbi.deinit();
-    stbi.setFlipVerticallyOnLoad(true);
+    // stbi.setFlipVerticallyOnLoad(true);
 
     // initialise the zmesh library
     zmesh.init(arena_allocator);
     defer zmesh.deinit();
 
     const myShader = try shader.create(allocator, VERT_SHADER, FRAG_SHADER);
-
-    const diffuseMap = try loadTexture("textures/resurrect64.png");
 
     var src_indices = std.ArrayList(u32).init(arena_allocator);
     var src_positions = std.ArrayList([3]f32).init(arena_allocator);
@@ -110,6 +109,7 @@ pub fn main() !void {
             .position = src_positions.items[i],
             .normal = src_normals.items[i],
             .texCoords = src_texcoords.items[i],
+            // .texCoords = .{ 0.438, 0.933 },  // values as i see them in blender
         });
     }
 
@@ -143,11 +143,27 @@ pub fn main() !void {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, @as(isize, @intCast(src_indices.items.len * @sizeOf(u32))), &src_indices.items[0], gl.STATIC_DRAW);
 
+    // const diffuseMap = try loadTextureEx(TEXTURE_FILE, false, false, gl.NEAREST, gl.NEAREST);
+    // *****
+    std.debug.assert(data.images != null);
+    std.debug.assert(data.images.?[0].buffer_view != null);
+    var img_buff_view = data.images.?[0].buffer_view.?;
+    const buffer_data_ptr = @as([*]const u8, @ptrCast(img_buff_view.buffer.data));
+    const img_data = buffer_data_ptr[img_buff_view.offset..][0..img_buff_view.size];
+    var image = try stbi.Image.loadFromMemory(img_data, 0);
+    defer image.deinit();
+    //
+    var diffuseMap: u32 = undefined;
+    gl.genTextures(1, &diffuseMap);
+    gl.bindTexture(gl.TEXTURE_2D, diffuseMap);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, @intCast(image.width), @intCast(image.height), 0, gl.RGBA, gl.UNSIGNED_BYTE, @ptrCast(image.data));
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
     // uncomment this call to draw in wireframe polygons
     // gl.polygonMode(gl.FRONT_AND_BACK, gl.LINE);
-
-    myShader.use();
-    myShader.setInt("diffuseTexture", 0);
 
     // render loop
     // -----------
@@ -164,11 +180,11 @@ pub fn main() !void {
         gl.clearColor(0.1, 0.1, 0.1, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        // draw our first triangle
         myShader.use();
 
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, diffuseMap);
+        myShader.setInt("diffuseTexture", 0);
 
         const projection = zm.perspectiveFovRhGl(std.math.degreesToRadians(f32, camera.zoom), @as(f32, @floatFromInt(scr_width_actual)) / @as(f32, @floatFromInt(scr_height_actual)), 0.1, 100.0);
         const view = camera.getViewMatrix();
@@ -252,10 +268,15 @@ inline fn degToRad(degrees: f32) f32 {
     return degrees * std.math.pi / 180.0;
 }
 
-fn loadTexture(path: []const u8) !u32 {
+fn loadTextureEx(path: []const u8, flip: bool, mipmap: bool, comptime minFilter: comptime_int, comptime magFilter: comptime_int) !u32 {
     var textureID: u32 = undefined;
     gl.genTextures(1, &textureID);
 
+    if (flip) {
+        stbi.setFlipVerticallyOnLoad(true);
+    } else {
+        stbi.setFlipVerticallyOnLoad(false);
+    }
     var image: stbi.Image = undefined;
     image = stbi.Image.loadFromFile(@ptrCast(path), 0) catch |err| {
         std.log.err("Failed to load texture: {s}\n{}", .{ path, err });
@@ -272,12 +293,18 @@ fn loadTexture(path: []const u8) !u32 {
 
     gl.bindTexture(gl.TEXTURE_2D, textureID);
     gl.texImage2D(gl.TEXTURE_2D, 0, format, @intCast(image.width), @intCast(image.height), 0, format, gl.UNSIGNED_BYTE, @ptrCast(image.data));
-    gl.generateMipmap(gl.TEXTURE_2D);
+    if (mipmap) {
+        gl.generateMipmap(gl.TEXTURE_2D);
+    }
 
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minFilter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, magFilter);
 
     return textureID;
+}
+
+fn loadTexture(path: []const u8) !u32 {
+    return try loadTextureEx(path, true, true, gl.LINEAR_MIPMAP_LINEAR, gl.LINEAR);
 }

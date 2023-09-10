@@ -3,3 +3,5 @@ libs/*
 
 zig-cache
 zig-out
+
+*.cap
