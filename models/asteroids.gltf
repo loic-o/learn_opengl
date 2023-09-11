@@ -6,6 +6,9 @@
 	"scene":0,
 	"scenes":[
 		{
+			"extras":{
+				"automirror":{}
+			},
 			"name":"Scene",
 			"nodes":[
 				0,
@@ -35,6 +38,9 @@
 			]
 		},
 		{
+			"extras":{
+				"custom_prop_fp":0.75
+			},
 			"mesh":2,
 			"name":"asteroid.002",
 			"translation":[

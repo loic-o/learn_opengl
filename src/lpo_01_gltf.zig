@@ -29,6 +29,10 @@ const FRAG_SHADER = "shaders/lpo_01_gltf.frag";
 const GLTF_FILE = "models/asteroids.gltf";
 const TEXTURE_FILE = "textures/resurrect64_lpo_2x64.png";
 
+// i feel as if this should be 'packed' in order to ensure that it
+// is laid out in memory the same as a f32 array would be.  however, as
+// of the zig version i am using (0.11) i cannot pack a struct with
+// arrays in it.
 const Vertex = struct {
     position: [3]f32,
     normal: [3]f32,
@@ -95,12 +99,14 @@ pub fn main() !void {
 
     const myShader = try shader.create(allocator, VERT_SHADER, FRAG_SHADER);
 
+    // load data from the gltf file
+    // ****************************
+    const data = try zmesh.io.parseAndLoadFile(GLTF_FILE);
+    defer zmesh.io.freeData(data);
     var src_indices = std.ArrayList(u32).init(arena_allocator);
     var src_positions = std.ArrayList([3]f32).init(arena_allocator);
     var src_normals = std.ArrayList([3]f32).init(arena_allocator);
     var src_texcoords = std.ArrayList([2]f32).init(arena_allocator);
-    const data = try zmesh.io.parseAndLoadFile(GLTF_FILE);
-    defer zmesh.io.freeData(data);
     try zmesh.io.appendMeshPrimitive(data, 0, 0, &src_indices, &src_positions, &src_normals, &src_texcoords, null);
 
     var src_vertices = try std.ArrayList(Vertex).initCapacity(arena_allocator, src_positions.items.len);
@@ -109,7 +115,6 @@ pub fn main() !void {
             .position = src_positions.items[i],
             .normal = src_normals.items[i],
             .texCoords = src_texcoords.items[i],
-            // .texCoords = .{ 0.438, 0.933 },  // values as i see them in blender
         });
     }
 
