@@ -22,12 +22,12 @@ pub fn create(allocator: std.mem.Allocator, vertPath: []const u8, fragPath: []co
     // compile shaders
     // ---------------
     const vertex = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(vertex, 1, &vertexCode.ptr, null);
+    gl.shaderSource(vertex, 1, &vertexCode.ptr, &[_]i32{@intCast(vertexCode.len)});
     gl.compileShader(vertex);
     try checkCompilerError(vertex, .vertex);
 
     const fragment = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(fragment, 1, &fragmentCode.ptr, null);
+    gl.shaderSource(fragment, 1, &fragmentCode.ptr, &[_]i32{@intCast(fragmentCode.len)});
     gl.compileShader(fragment);
     try checkCompilerError(fragment, .fragment);
 

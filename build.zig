@@ -29,6 +29,7 @@ pub fn build(b: *std.Build) void {
         // advanced opengl
         .{ .name = "depth_testing", .src = "src/4_1_depth_testing.zig" },
         .{ .name = "face_culling", .src = "src/4_4_face_culling.zig" },
+        .{ .name = "framebuffers", .src = "src/4_5_framebuffers.zig" },
         // loic - gltf
         .{ .name = "lpo_01", .src = "src/lpo_01_gltf.zig" },
     };
