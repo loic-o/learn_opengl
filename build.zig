@@ -26,6 +26,8 @@ pub fn build(b: *std.Build) void {
         .{ .name = "lighting_maps", .src = "src/2_4_lighting_maps.zig" },
         .{ .name = "light_casters", .src = "src/2_5_light_casters.zig" },
         .{ .name = "multiple_lights", .src = "src/2_6_multiple_lights.zig" },
+        // advanced opengl
+        .{ .name = "depth_testing", .src = "src/4_1_depth_testing.zig" },
         // loic - gltf
         .{ .name = "lpo_01", .src = "src/lpo_01_gltf.zig" },
     };
