@@ -177,7 +177,7 @@ pub fn main() !void {
     gl.vertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, 5 * @sizeOf(f32), @ptrFromInt(3 * @sizeOf(f32)));
     gl.bindVertexArray(0);
 
-    const cube_texture = try loadTexture("textures/marble.jpg");
+    const cube_texture = try loadTexture("textures/container.jpg");
     const plane_texture = try loadTexture("textures/metal.png");
 
     shader.use();
