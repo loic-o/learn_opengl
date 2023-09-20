@@ -30,6 +30,8 @@ pub fn build(b: *std.Build) void {
         .{ .name = "depth_testing", .src = "src/4_1_depth_testing.zig" },
         .{ .name = "face_culling", .src = "src/4_4_face_culling.zig" },
         .{ .name = "framebuffers", .src = "src/4_5_framebuffers.zig" },
+        // in practice
+        .{ .name = "text_rendering", .src = "src/7_2_text_rendering.zig" },
         // loic - gltf
         .{ .name = "lpo_01", .src = "src/lpo_01_gltf.zig" },
     };
@@ -53,6 +55,8 @@ pub fn build(b: *std.Build) void {
     });
     const zmesh_pkg = zmesh.package(b, target, optimize, .{});
 
+    const mach_freetype_dep = b.dependency("mach_freetype", .{ .target = target, .optimize = optimize });
+
     var exe: *std.Build.Step.Compile = undefined;
     for (exercises) |exercise| {
         exe = build_exercise(b, exercise);
@@ -61,6 +65,11 @@ pub fn build(b: *std.Build) void {
         zstbi_pkg.link(exe);
         zmath_pkg.link(exe);
         zmesh_pkg.link(exe);
+
+        exe.addModule("freetype", mach_freetype_dep.module("mach-freetype"));
+        exe.addModule("harfbuzz", mach_freetype_dep.module("mach-harfbuzz"));
+        @import("mach_freetype").linkFreetype(mach_freetype_dep.builder, exe);
+        @import("mach_freetype").linkHarfbuzz(mach_freetype_dep.builder, exe);
     }
 }
 
