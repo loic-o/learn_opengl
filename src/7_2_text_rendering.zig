@@ -54,7 +54,7 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     const shader = try sh.create(allocator, "shaders/text.vert", "shaders/text.frag");
-    const proj = zmath.orthographicOffCenterRhGl(0.0, SCREEN_WIDTH, 0.0, SCREEN_HEIGHT, -1.0, 1.0);
+    const proj = zmath.orthographicOffCenterRhGl(0.0, SCREEN_WIDTH, SCREEN_HEIGHT, 0.0, -1.0, 1.0);
     shader.use();
     shader.setMatrix4("projection", false, zmath.matToArr(proj));
 
